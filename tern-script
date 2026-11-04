@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name=${TERN_SCRIPT_NAME:-${1##*/}}
+[ $# -ge 1 ] || { echo "usage: tern-script PROG [ARGS...]" >&2; exit 2; }
+user_cfg=${TERN_USER_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/tern}
+run=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/tern-script.XXXXXX")
+export TERN_CONFIG_DIR=$run/cfg TERN_DAEMON_SOCKET=$run/daemon.sock
+cleanup() {
+  pkill -f -- "--socket $TERN_DAEMON_SOCKET" 2>/dev/null || true
+  rm -rf "$run"
+}
+trap cleanup EXIT
+here=$(dirname "$(readlink -f "$0")")
+mkdir -p "$TERN_CONFIG_DIR/plugins"
+printf '%s\n' "$here" > "$TERN_CONFIG_DIR/plugins/tern-script-bare.path"
+[ -d "$user_cfg/themes" ] && ln -s "$user_cfg/themes" "$TERN_CONFIG_DIR/themes"
+if [ -r "$user_cfg/settings.json" ]; then
+  jq '{theme, theme_dark, theme_light, font_size, material, opacity, blur, contrast, msaa, renderer, snap_text}
+      | with_entries(select(.value != null))
+      + {status_bar: false, system_title_bar: false, padding_x: 0, padding_y: 0}' \
+    "$user_cfg/settings.json" > "$TERN_CONFIG_DIR/settings.json"
+fi
+tern daemon --socket "$TERN_DAEMON_SOCKET" --login >/dev/null 2>&1
+for _ in $(seq 50); do [ -S "$TERN_DAEMON_SOCKET" ] && break; sleep 0.02; done
+tern new session "$name" -- "$@" >/dev/null
+(cd / && exec setsid tern --control "$run/control.sock" </dev/null >"$run/window.log" 2>&1) &
+window=$!
+while tern ls 2>/dev/null | grep -q "^  tab "; do
+  kill -0 "$window" 2>/dev/null || break
+  sleep 0.1
+done
+kill "$window" 2>/dev/null || true

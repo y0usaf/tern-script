@@ -1,0 +1,4 @@
+#tabbar, .csd-ctl, .tn-pip-guides, .tn-pip-tabs, #sidebar, .tn-grip { display: none !important; }
+#panel, .tn-stage { top: 0 !important; margin: 0 !important; padding: 0 !important; }
+.tn-stage { inset: 0 !important; width: 100% !important; height: 100% !important; }
+.tn-pane { border-radius: 0 !important; }

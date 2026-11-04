@@ -16,6 +16,7 @@ here=$(dirname "$(readlink -f "$0")")
 mkdir -p "$TERN_CONFIG_DIR/plugins"
 printf '%s\n' "$here" > "$TERN_CONFIG_DIR/plugins/tern-script-bare.path"
 for id in ${TERN_SCRIPT_PLUGINS-}; do
+  case $id in /*) [ -f "$id/plugin.toml" ] && printf '%s\n' "$id" > "$TERN_CONFIG_DIR/plugins/$(basename "$id").path"; continue ;; esac
   [ -d "$user_cfg/plugins/$id" ] && printf '%s\n' "$(readlink -f "$user_cfg/plugins/$id")" > "$TERN_CONFIG_DIR/plugins/$id.path"
   [ -f "$user_cfg/plugins/$id.path" ] && cp "$user_cfg/plugins/$id.path" "$TERN_CONFIG_DIR/plugins/"
 done
@@ -23,14 +24,16 @@ done
 if [ -r "$user_cfg/settings.json" ]; then
   jq '{theme, theme_dark, theme_light, font_size, material, opacity, blur, contrast, msaa, renderer, snap_text}
       | with_entries(select(.value != null))
-      + {status_bar: false, system_title_bar: false, padding_x: 0, padding_y: 0}' \
-    "$user_cfg/settings.json" > "$TERN_CONFIG_DIR/settings.json"
+      + {status_bar: false, system_title_bar: false, padding_x: 0, padding_y: 0} + ($extra // {})' \
+    --argjson extra "${TERN_SCRIPT_SETTINGS:-null}" "$user_cfg/settings.json" > "$TERN_CONFIG_DIR/settings.json"
 fi
 tern daemon --socket "$TERN_DAEMON_SOCKET" --login >/dev/null 2>&1
 for _ in $(seq 50); do [ -S "$TERN_DAEMON_SOCKET" ] && break; sleep 0.02; done
 tern new session "$name" -- "$@" >/dev/null
 (cd / && exec setsid tern --control "$run/control.sock" </dev/null >"$run/window.log" 2>&1) &
 window=$!
+for _ in $(seq 100); do tern inspect 2>/dev/null | grep -q '  window ' && break; sleep 0.05; done
+tern new tab "$name" -- sleep 0.2 >/dev/null 2>&1 || true
 while tern ls 2>/dev/null | awk -v s="$name" '/^[^ ]/{on=index($0, s" ")==1||$0==s} on&&/^  tab /{f=1} END{exit !f}'; do
   kill -0 "$window" 2>/dev/null || break
   sleep 0.1

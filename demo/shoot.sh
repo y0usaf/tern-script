@@ -7,6 +7,12 @@ mkdir -p "$out"
 music=$demo/music
 export CMUS_HOME=$demo/cmus-home CMUS_SOCKET=$demo/cmus-home/socket PULSE_SINK=tern_demo_null XDG_CACHE_HOME=$demo/cache
 magick=$(nix build --no-link --print-out-paths nixpkgs#imagemagick)/bin/magick
+display=tern-demo-$$
+setsid -f tomoe --socket "$display" --backend headless --bare --no-watch >/dev/null 2>&1
+for _ in $(seq 100); do [ -S "$XDG_RUNTIME_DIR/$display" ] && break; sleep 0.05; done
+[ -S "$XDG_RUNTIME_DIR/$display" ] || { echo "shoot.sh: private compositor did not start" >&2; exit 1; }
+export WAYLAND_DISPLAY=$display
+unset DISPLAY
 mod=$(pactl load-module module-null-sink sink_name=tern_demo_null sink_properties=device.description=tern-demo)
 work=$(mktemp -d)
 cleanup() {
@@ -14,6 +20,7 @@ cleanup() {
   [ -n "${run-}" ] && TERN_DAEMON_SOCKET=$run/daemon.sock TERN_CONFIG_DIR=$run/cfg tern send @focused text q >/dev/null 2>&1 || true
   sleep 2
   pactl unload-module "$mod" || true
+  pkill -f -- "tomoe --socket $display " || true
   rm -rf "$work"
 }
 trap cleanup EXIT

@@ -53,9 +53,10 @@ r -k 72
 [ -n "${CSS-}" ] && ctl css ozcmus-dev "$CSS" >/dev/null
 shoot() {
   tern send @focused text "$1"
+  r -k 72
   sleep 3
   ctl shot "$2" >/dev/null
-  "$magick" "$run/target/shots/tern/live/$2.png" -bordercolor '#c9c9c4' -border 1 \( +clone -background '#000' -shadow 22x16+0+12 \) +swap -background none -layers merge +repage -gravity center -background '#ecebe7' -extent "$("$magick" identify -format '%[fx:w+200]x%[fx:h+200]' "$run/target/shots/tern/live/$2.png")" -flatten "$out/$2.png"
+  "$magick" "$run/target/shots/tern/live/$2.png" -bordercolor '#ecebe7' -border 56 "$out/$2.png"
 }
 shoot 1 cmus-now-playing
 shoot 2 cmus-songs

@@ -201,7 +201,12 @@ def launch(entry):
     argv = shlex.split(entry["exec"])
     if entry["terminal"]:
         argv = ["tern", "-e", *argv]
-    subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TERN_") and k != "TERM_PROGRAM"}
+    for name in ("CONFIG_DIR", "DAEMON_SOCKET"):
+        outer = os.environ.get(f"TERN_SCRIPT_OUTER_{name}")
+        if outer:
+            env[f"TERN_{name}"] = outer
+    subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True, cwd=os.path.expanduser("~"))
 
 

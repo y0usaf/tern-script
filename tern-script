@@ -4,8 +4,10 @@ name=${TERN_SCRIPT_NAME:-${1##*/}}
 [ $# -ge 1 ] || { echo "usage: tern-script PROG [ARGS...]" >&2; exit 2; }
 user_cfg=${TERN_USER_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/tern}
 run=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/tern-script.XXXXXX")
+export TERN_SCRIPT_OUTER_CONFIG_DIR=${TERN_CONFIG_DIR-} TERN_SCRIPT_OUTER_DAEMON_SOCKET=${TERN_DAEMON_SOCKET-}
 export TERN_CONFIG_DIR=$run/cfg TERN_DAEMON_SOCKET=$run/daemon.sock
 cleanup() {
+  pkill -f -- "--control $run/control.sock" 2>/dev/null || true
   pkill -f -- "--socket $TERN_DAEMON_SOCKET" 2>/dev/null || true
   rm -rf "$run"
 }
@@ -25,7 +27,7 @@ for _ in $(seq 50); do [ -S "$TERN_DAEMON_SOCKET" ] && break; sleep 0.02; done
 tern new session "$name" -- "$@" >/dev/null
 (cd / && exec setsid tern --control "$run/control.sock" </dev/null >"$run/window.log" 2>&1) &
 window=$!
-while tern ls 2>/dev/null | grep -q "^  tab "; do
+while tern ls 2>/dev/null | awk -v s="$name" '/^[^ ]/{on=index($0, s" ")==1||$0==s} on&&/^  tab /{f=1} END{exit !f}'; do
   kill -0 "$window" 2>/dev/null || break
   sleep 0.1
 done

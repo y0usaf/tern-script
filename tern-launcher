@@ -21,13 +21,21 @@ KEYS = {
 SEQS = sorted(KEYS, key=len, reverse=True)
 PREFIXES = [APC] + SEQS
 SHEET = """
-.tl-root{display:flex;flex-direction:column;height:100%;padding:14px;gap:10px}
-.tl-query{font-size:1.4em;padding:8px 12px;border-radius:8px;background:var(--surface-2, rgba(127,127,127,.12))}
-.tl-hint{opacity:.45}
-.tl-list{display:flex;flex-direction:column;gap:2px;overflow:hidden}
-.tl-row{padding:6px 12px;border-radius:6px;display:flex;justify-content:space-between}
-.tl-row.tl-sel{background:var(--accent, #6b5bd2);color:var(--accent-fg, white)}
-.tl-sub{opacity:.5;font-size:.85em}
+.tl-root{display:flex;flex-direction:column;height:100%;padding:22px 24px;gap:14px;background:var(--page, var(--panel));color:var(--t1)}
+.tl-head{display:flex;align-items:center;gap:10px}
+.tl-tag{padding:3px 10px;background:var(--oz-lav, var(--accent));color:var(--oz-plum, var(--t1));font-family:var(--oz-mono, monospace);font-size:.75em;letter-spacing:.08em}
+.tl-count{color:var(--t3);font-family:var(--oz-mono, monospace);font-size:.75em}
+.tl-query{font-family:"Crimson Pro",Georgia,serif;font-size:1.6em;padding:10px 16px;background:var(--raise, var(--card));border:1px solid var(--oz-plum, var(--t2));box-shadow:4px 4px 0 var(--oz-plum, var(--t2))}
+.tl-hint{color:var(--t3)}
+.tl-list{display:flex;flex-direction:column;gap:4px;overflow:hidden;padding:4px 0}
+.tl-row{padding:7px 14px;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent}
+.tl-row.tl-sel{background:var(--oz-lav, var(--accent));color:var(--oz-plum, white);border-color:var(--oz-plum, transparent);box-shadow:3px 3px 0 var(--oz-plum, transparent)}
+.tl-name{font-family:"Crimson Pro",Georgia,serif;font-size:1.15em}
+.tl-sub{color:var(--t3);font-family:var(--oz-mono, monospace);font-size:.75em}
+.tl-sel .tl-sub{color:var(--oz-plum, white);opacity:.7}
+.tl-foot{display:flex;gap:16px;color:var(--t3);font-family:var(--oz-mono, monospace);font-size:.72em;margin-top:auto}
+.tl-hint-item{display:flex;align-items:center;gap:2px}
+.tl-key{padding:1px 6px;margin-right:5px;background:var(--oz-lime, var(--card));color:var(--oz-plum, var(--t1));border:1px solid var(--oz-plum, var(--t3))}
 """
 
 
@@ -136,7 +144,7 @@ class App:
         self.entries = entries
         self.query = ""
         self.sel = 0
-        self.rows = 12
+        self.rows = 6
         self.shown = False
         self.result = None
 
@@ -163,10 +171,16 @@ class App:
             rows.append(self.el(f"r{n - start}", "tl-row tl-sel" if n == self.sel else "tl-row",
                                 [self.el(f"r{n - start}.n", "tl-name", text=e["name"]),
                                  self.el(f"r{n - start}.s", "tl-sub", text=e["sub"][:60])]))
-        query = self.query or "Run an application"
+        query = self.query or "Type to search"
+        keys = [("↵", "open"), ("↑↓", "move"), ("esc", "close")]
+        foot = [self.el(f"k{i}", "tl-hint-item", [self.el(f"k{i}.k", "tl-key", text=k), self.el(f"k{i}.t", "tl-ktext", text=t)])
+                for i, (k, t) in enumerate(keys)]
         tree = self.el("main", "tl-root", [
+            self.el("head", "tl-head", [self.el("tag", "tl-tag", text="RUN"),
+                                        self.el("count", "tl-count", text=f"{len(found)} of {len(self.entries)} apps")]),
             self.el("q", "tl-query" if self.query else "tl-query tl-hint", text=query),
             self.el("list", "tl-list", rows or [self.el("none", "tl-row tl-hint", text="No matches")]),
+            self.el("foot", "tl-foot", foot),
         ])
         ops = [["del", "main"]] if self.shown else []
         ops.append(["add", "main", SURFACE, None, tree])

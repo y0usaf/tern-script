@@ -21,22 +21,6 @@ KEYS = {
 }
 SEQS = sorted(KEYS, key=len, reverse=True)
 PREFIXES = [APC] + SEQS
-SHEET = """
-.tl-root{position:absolute;inset:0;display:flex;flex-direction:column;padding:16px 20px;gap:10px;background:rgb(from var(--page) r g b / 1);color:var(--t1)}
-.tl-head{display:flex;align-items:center;gap:10px}
-.tl-tag{padding:3px 10px;background:var(--card);color:var(--t1);font-size:.75em;letter-spacing:.08em}
-.tl-count{color:var(--t3);font-size:.75em}
-.tl-query{font-size:1.4em;padding:8px 12px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md)}
-.tl-hint{color:var(--t3)}
-.tl-list{display:flex;flex-direction:column;gap:4px;overflow:hidden;padding:4px 0}
-.tl-row{padding:6px 12px;display:flex;justify-content:space-between;align-items:center;border-radius:var(--r-sm);gap:12px}
-.tl-row.tl-sel{background:var(--card);color:var(--t1);outline:1px solid var(--accent)}
-.tl-name{font-size:1.15em;flex-shrink:0}
-.tl-sub{color:var(--t3);font-size:.75em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tl-foot{display:flex;gap:16px;color:var(--t3);font-size:.72em;margin-top:auto}
-.tl-hint-item{display:flex;align-items:center;gap:2px}
-.tl-key{padding:1px 6px;margin-right:5px;background:var(--card);color:var(--t1);border:1px solid var(--line);border-radius:var(--r-sm)}
-"""
 
 
 def message(verb, params, text):
@@ -153,42 +137,47 @@ class App:
         scored = [(s, i, e) for i, e in enumerate(self.entries) if (s := score(e, q)) is not None]
         return [e for _, _, e in sorted(scored, key=lambda t: (t[0], t[1]))]
 
-    def el(self, nid, cls, kids=None, text=None):
-        p = {"tag": "div", "class": cls}
-        if text is not None:
-            p["text"] = text
-        node = {"id": nid, "k": "el", "p": p}
-        if kids:
-            node["c"] = kids
-        return node
 
     def render(self):
         found = self.matches()
         self.sel = max(0, min(self.sel, len(found) - 1))
         start = max(0, self.sel - self.rows + 1)
-        rows = []
-        for n, e in enumerate(found[start:start + self.rows], start):
-            rows.append(self.el(f"r{n - start}", "tl-row tl-sel" if n == self.sel else "tl-row",
-                                [self.el(f"r{n - start}.n", "tl-name", text=e["name"]),
-                                 self.el(f"r{n - start}.s", "tl-sub", text=e["sub"][:60])]))
-        query = self.query or "Type to search"
-        keys = [("↵", "open"), ("↑↓", "move"), ("esc", "close")]
-        foot = [self.el(f"k{i}", "tl-hint-item", [self.el(f"k{i}.k", "tl-key", text=k), self.el(f"k{i}.t", "tl-ktext", text=t)])
-                for i, (k, t) in enumerate(keys)]
-        tree = self.el("launcher", "tl-root", [
-            self.el("head", "tl-head", [self.el("tag", "tl-tag", text="RUN"),
-                                        self.el("count", "tl-count", text=f"{len(found)} of {len(self.entries)} apps")]),
-            self.el("q", "tl-query" if self.query else "tl-query tl-hint", text=query),
-            self.el("list", "tl-list", rows or [self.el("none", "tl-row tl-hint", text="No matches")]),
-            self.el("foot", "tl-foot", foot),
-        ])
-        tree = self.el("main", "", [tree])
+        items = [{"id": str(n), "label": e["name"], "detail": e["sub"][:60]}
+                 for n, e in enumerate(found[start:start + self.rows], start)]
+        tree = {"id": "launcher", "k": "picker", "p": {
+            "size": "screen", "title": "Run", "subtitle": f"{len(found)} of {len(self.entries)} apps",
+            "query": self.query, "placeholder": "Type to search", "noun": "apps",
+            "total": len(found), "items": items, "order": [item["id"] for item in items],
+            "selected": str(self.sel) if found else "", "preview": "none", "focus": "list",
+            "empty": "No matches", "actions": [
+                {"id": "open", "label": "Open", "keys": ["enter"], "primary": True, **({"disabled": True} if not found else {})},
+                {"id": "close", "label": "Close", "keys": ["esc"], "end": True}]
+        }}
+        tree = {"id": "main", "k": "col", "c": [tree]}
         ops = [["del", "main"]] if self.shown else []
         ops.append(["add", "main", SURFACE, None, tree])
         self.shown = True
         self.seq = getattr(self, "seq", 0) + 1
         send(frame("f", {"sf": SURFACE, "s": self.seq, "ops": ops}))
         return found
+
+    def event(self, value):
+        if value.get("id") != "launcher":
+            return None
+        event = value.get("ev")
+        if event in ("select", "activate"):
+            item = value.get("item", "")
+            if not isinstance(item, str) or not item.isdecimal() or int(item) >= len(self.matches()):
+                return None
+            self.sel = int(item)
+            if event == "activate":
+                return self.key("enter", None)
+        elif event == "action":
+            if value.get("act") == "close":
+                return "quit"
+            if value.get("act") == "open":
+                return self.key("enter", None)
+        return None
 
     def key(self, kind, value):
         found = self.matches()
@@ -232,7 +221,6 @@ def main():
         sys.stderr.write("tern-launcher: needs a terminal\n")
         return 1
     context = json.loads(Path(sys.argv[1]).read_text())
-    stylesheet = "\n".join(Path(path).read_text().replace(":root", ".tl-root") for path in context["styles"]) + SHEET
     saved = termios.tcgetattr(0)
     raw = list(saved)
     raw[3] &= ~(termios.ECHO | termios.ICANON | termios.ISIG)
@@ -252,7 +240,6 @@ def main():
             sys.stderr.write("tern-launcher: no TSP host answered\n")
             return 1
         send(frame("o", {"id": SURFACE, "mode": "screen", "title": "launcher", "role": "tern-run.launcher"}))
-        send(frame("s", {"sf": SURFACE, "name": "launcher", "css": stylesheet}))
         app.render()
         while True:
             ready = select.select([0], [], [], 0.25)[0]
@@ -269,8 +256,9 @@ def main():
             done = False
             for kind, value in events:
                 if kind == "tsp":
-                    if value.get("ev") == "gone":
+                    if value.get("ev") == "gone" or app.event(value) == "quit":
                         done = True
+                        break
                     continue
                 if app.key(kind, value) == "quit":
                     done = True

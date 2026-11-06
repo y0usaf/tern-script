@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(prefix="tern-run.", dir=os.environ.get("XDG_RUN
     plugin = cfg / "plugins" / "launcher"
     plugin.mkdir(parents=True)
     settings = json.loads((config / "settings.json").read_text()) if (config / "settings.json").exists() else {}
-    settings = {k: v for k, v in settings.items() if k in {"theme", "theme_dark", "theme_light", "font_size", "ui_font_size", "font_family", "ui_font", "code_font", "material", "opacity", "blur", "contrast", "renderer", "snap_text"}}
+    settings = {k: v for k, v in settings.items() if k in {"theme", "theme_dark", "theme_light", "font_size", "ui_font_size", "font_family", "font_family_bold", "font_family_italic", "font_family_bold_italic", "ui_font", "code_font", "material", "opacity", "blur", "contrast", "renderer", "snap_text"}}
     settings.update(status_bar=False, system_title_bar=False, padding_x=0, padding_y=0)
     (cfg / "settings.json").write_text(json.dumps(settings))
     if (config / "themes").exists():
@@ -31,12 +31,11 @@ with tempfile.TemporaryDirectory(prefix="tern-run.", dir=os.environ.get("XDG_RUN
             sheets.append(sheet.name)
     shutil.copyfile(here / "bare.css", plugin / "bare.css")
     (plugin / "window.luau").touch()
-    (plugin / "plugin.toml").write_text('schema = 1\nid = "launcher"\nname = "Launcher"\nversion = "0.1.0"\nwindow = "window.luau"\nstyles = ["bare.css"]\n')
+    (plugin / "plugin.toml").write_text('schema = 1\nid = "launcher"\nname = "Launcher"\nversion = "0.1.0"\nwindow = "window.luau"\nstyles = ' + json.dumps(sheets + ["bare.css"]) + "\n")
     context = run / "context.json"
     context.write_text(json.dumps({
         "config": os.environ.get("TERN_CONFIG_DIR", ""),
         "socket": os.environ.get("TERN_DAEMON_SOCKET", ""),
-        "styles": [str(plugin / sheet) for sheet in sheets],
     }))
     env = dict(os.environ, TERN_CONFIG_DIR=str(cfg), TERN_DAEMON_SOCKET=str(run / "daemon.sock"))
     (cfg / "welcomed").touch()
@@ -47,8 +46,18 @@ with tempfile.TemporaryDirectory(prefix="tern-run.", dir=os.environ.get("XDG_RUN
             if daemon.poll() is not None or time.monotonic() >= deadline:
                 raise RuntimeError("Tern daemon did not start")
             time.sleep(0.01)
-        pane = subprocess.check_output(["tern", "new", "session", "launcher", "--", str(here / "tern-launcher"), str(context)], env=env, text=True).strip()
+        pending = subprocess.Popen(["tern", "new", "session", "launcher", "--", str(here / "tern-launcher"), str(context)], env=env, text=True, stdout=subprocess.PIPE)
         window = subprocess.Popen(["tern", "--control", str(run / "control.sock")], env=env, cwd="/")
+        try:
+            pane, _ = pending.communicate()
+            if pending.returncode:
+                raise subprocess.CalledProcessError(pending.returncode, pending.args)
+            pane = pane.strip()
+            subprocess.run(["tern", "focus", pane], env=env, check=True, stdout=subprocess.DEVNULL)
+        except BaseException:
+            window.terminate()
+            window.wait()
+            raise
         waiter = subprocess.Popen(["tern", "wait", pane, "--until", "exit"], env=env)
         try:
             while window.poll() is None and waiter.poll() is None:

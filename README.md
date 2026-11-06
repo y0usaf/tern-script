@@ -22,6 +22,8 @@ System light/dark changes without a launcher palette. The launcher owns a
 temporary configuration and daemon, removed together when its program or window
 closes; it never loads the main window’s accounts or sessions. Window startup and
 launcher-session creation run concurrently rather than waiting for one another.
+The picker sends a new frame only when input changes its query or selection;
+protocol acknowledgements do not trigger another render.
 
 Bind `tern-run` to Win+R. On Tomoe, float and centre windows with app ID
 `so.stencil.tern` and title `launcher`; the main terminal has the same app ID.

@@ -253,6 +253,7 @@ def main():
             if not data:
                 break
             events, buf = parse(buf + data)
+            previous = app.query, app.sel
             done = False
             for kind, value in events:
                 if kind == "tsp":
@@ -265,7 +266,8 @@ def main():
                     break
             if done:
                 break
-            app.render()
+            if (app.query, app.sel) != previous:
+                app.render()
     finally:
         termios.tcsetattr(0, termios.TCSANOW, saved)
     send(frame("x", {"id": SURFACE, "keep": False}))

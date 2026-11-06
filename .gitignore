@@ -1,4 +1,2 @@
-demo/music/
-demo/cmus-home/
-demo/cache/
-demo/.run
+result
+__pycache__/

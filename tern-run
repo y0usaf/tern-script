@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import time
+
+here = Path(__file__).resolve().parent
+config = Path(os.environ.get("TERN_CONFIG_DIR") or str(Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "tern"))
+state = config if os.environ.get("TERN_CONFIG_DIR") else Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state"))) / "tern"
+with tempfile.TemporaryDirectory(prefix="tern-run.", dir=os.environ.get("XDG_RUNTIME_DIR")) as temporary:
+    run = Path(temporary)
+    cfg = run / "config"
+    plugin = cfg / "plugins" / "launcher"
+    plugin.mkdir(parents=True)
+    settings = json.loads((config / "settings.json").read_text()) if (config / "settings.json").exists() else {}
+    settings = {k: v for k, v in settings.items() if k in {"theme", "theme_dark", "theme_light", "font_size", "ui_font_size", "font_family", "ui_font", "code_font", "material", "opacity", "blur", "contrast", "renderer", "snap_text"}}
+    settings.update(status_bar=False, system_title_bar=False, padding_x=0, padding_y=0)
+    (cfg / "settings.json").write_text(json.dumps(settings))
+    if (config / "themes").exists():
+        (cfg / "themes").symlink_to(config / "themes")
+    sheets = []
+    preference = state / "plugin-data/ui-menu/kv.json"
+    active = json.loads(preference.read_text()).get("on", {}) if preference.exists() else {}
+    for look in ("mini", "ozette", "yorha", "grok"):
+        sheet = config / "plugins/ui-menu/snippets" / (look + ".css")
+        if active.get(look) and sheet.exists():
+            (plugin / sheet.name).symlink_to(sheet)
+            sheets.append(sheet.name)
+    shutil.copyfile(here / "bare.css", plugin / "bare.css")
+    sheets.append("bare.css")
+    (plugin / "window.luau").touch()
+    (plugin / "plugin.toml").write_text("schema = 1\nid = \"launcher\"\nname = \"Launcher\"\nversion = \"0.1.0\"\nwindow = \"window.luau\"\nstyles = " + json.dumps(sheets) + "\n")
+    env = dict(os.environ, TERN_CONFIG_DIR=str(cfg), TERN_DAEMON_SOCKET=str(run / "daemon.sock"))
+    (cfg / "welcomed").touch()
+    env["TERN_RUN_OUTER_CONFIG_DIR"] = os.environ.get("TERN_CONFIG_DIR", "")
+    env["TERN_RUN_OUTER_DAEMON_SOCKET"] = os.environ.get("TERN_DAEMON_SOCKET", "")
+    daemon = subprocess.Popen(["tern", "daemon", "--socket", env["TERN_DAEMON_SOCKET"]], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        deadline = time.monotonic() + 5
+        while not (run / "daemon.sock").exists():
+            if daemon.poll() is not None or time.monotonic() >= deadline:
+                raise RuntimeError("Tern daemon did not start")
+            time.sleep(0.01)
+        pane = subprocess.check_output(["tern", "new", "session", "launcher", "--", str(here / "tern-launcher")], env=env, text=True).strip()
+        window = subprocess.Popen(["tern", "--control", str(run / "control.sock")], env=env, cwd="/")
+        waiter = subprocess.Popen(["tern", "wait", pane, "--until", "exit"], env=env)
+        try:
+            while window.poll() is None and waiter.poll() is None:
+                time.sleep(0.05)
+        finally:
+            waiter.terminate()
+            window.terminate()
+            waiter.wait()
+            window.wait()
+    finally:
+        daemon.terminate()
+        daemon.wait()

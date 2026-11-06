@@ -21,21 +21,20 @@ KEYS = {
 SEQS = sorted(KEYS, key=len, reverse=True)
 PREFIXES = [APC] + SEQS
 SHEET = """
-.tl-root{display:flex;flex-direction:column;height:100%;padding:22px 24px;gap:14px;background:var(--page, var(--panel));color:var(--t1)}
+.tl-root{display:flex;flex-direction:column;height:100%;padding:16px 20px;gap:10px;background:var(--page);color:var(--t1)}
 .tl-head{display:flex;align-items:center;gap:10px}
-.tl-tag{padding:3px 10px;background:var(--oz-lav, var(--accent));color:var(--oz-plum, var(--t1));font-family:var(--oz-mono, monospace);font-size:.75em;letter-spacing:.08em}
-.tl-count{color:var(--t3);font-family:var(--oz-mono, monospace);font-size:.75em}
-.tl-query{font-family:"Crimson Pro",Georgia,serif;font-size:1.6em;padding:10px 16px;background:var(--raise, var(--card));border:1px solid var(--oz-plum, var(--t2));box-shadow:4px 4px 0 var(--oz-plum, var(--t2))}
+.tl-tag{padding:3px 10px;background:var(--card);color:var(--t1);font-size:.75em;letter-spacing:.08em}
+.tl-count{color:var(--t3);font-size:.75em}
+.tl-query{font-size:1.4em;padding:8px 12px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md)}
 .tl-hint{color:var(--t3)}
 .tl-list{display:flex;flex-direction:column;gap:4px;overflow:hidden;padding:4px 0}
-.tl-row{padding:7px 14px;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent}
-.tl-row.tl-sel{background:var(--oz-lav, var(--accent));color:var(--oz-plum, white);border-color:var(--oz-plum, transparent);box-shadow:3px 3px 0 var(--oz-plum, transparent)}
-.tl-name{font-family:"Crimson Pro",Georgia,serif;font-size:1.15em}
-.tl-sub{color:var(--t3);font-family:var(--oz-mono, monospace);font-size:.75em}
-.tl-sel .tl-sub{color:var(--oz-plum, white);opacity:.7}
-.tl-foot{display:flex;gap:16px;color:var(--t3);font-family:var(--oz-mono, monospace);font-size:.72em;margin-top:auto}
+.tl-row{padding:6px 12px;display:flex;justify-content:space-between;align-items:center;border-radius:var(--r-sm);gap:12px}
+.tl-row.tl-sel{background:var(--card);color:var(--t1);outline:1px solid var(--accent)}
+.tl-name{font-size:1.15em;flex-shrink:0}
+.tl-sub{color:var(--t3);font-size:.75em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-foot{display:flex;gap:16px;color:var(--t3);font-size:.72em;margin-top:auto}
 .tl-hint-item{display:flex;align-items:center;gap:2px}
-.tl-key{padding:1px 6px;margin-right:5px;background:var(--oz-lime, var(--card));color:var(--oz-plum, var(--t1));border:1px solid var(--oz-plum, var(--t3))}
+.tl-key{padding:1px 6px;margin-right:5px;background:var(--card);color:var(--t1);border:1px solid var(--line);border-radius:var(--r-sm)}
 """
 
 
@@ -212,14 +211,14 @@ class App:
 
 
 def launch(entry):
-    argv = shlex.split(entry["exec"])
-    if entry["terminal"]:
-        argv = ["tern", "-e", *argv]
     env = {k: v for k, v in os.environ.items() if not k.startswith("TERN_") and k != "TERM_PROGRAM"}
     for name in ("CONFIG_DIR", "DAEMON_SOCKET"):
-        outer = os.environ.get(f"TERN_SCRIPT_OUTER_{name}")
+        outer = os.environ.get(f"TERN_RUN_OUTER_{name}")
         if outer:
             env[f"TERN_{name}"] = outer
+    argv = shlex.split(entry["exec"])
+    if entry["terminal"]:
+        argv = ["tern", "new", "tab", "--", *argv]
     subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True, cwd=os.path.expanduser("~"))
 

@@ -1,0 +1,26 @@
+# tern-run
+
+tern-run opens a fuzzy application launcher in its own chrome-free Tern window.
+
+Install Tern 0.9.11 or later, then run:
+
+```sh
+nix build --no-link
+nix run
+```
+
+Type to filter installed desktop applications. Prefix matches come before substring
+and ordered-letter matches. Arrow keys move the selection, Enter opens it,
+Backspace edits the query, Ctrl+U clears it, and Escape closes the window.
+Terminal applications open a new tab in the main Tern session; graphical applications
+start normally. Tern must already be running for terminal application launches.
+
+Each invocation reads Tern settings and the active Mini, Ozette, YoRHa or Grok
+look from the existing ui-menu configuration. It preserves the configured fonts
+and native light/dark preference without loading the main window’s plugins,
+accounts or sessions. The launcher owns a temporary configuration and daemon,
+removed together when its program or window closes.
+
+Bind `tern-run` to Win+R. On Tomoe, float and centre windows with app ID
+`so.stencil.tern` and title `launcher`; the main terminal has the same app ID.
+The flake packages Python; Tern is supplied by the host installation.

@@ -1,7 +1,0 @@
-schema = 1
-id = "tern-script-bare"
-name = "tern-script bare window"
-version = "0.1.0"
-description = "Hides Tern's window chrome so one script fills the window."
-window = "window.luau"
-styles = ["bare.css"]

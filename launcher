@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import json
 import os
-from pathlib import Path
 import re
 import select
 import shlex
@@ -128,7 +127,7 @@ class App:
         self.entries = entries
         self.query = ""
         self.sel = 0
-        self.rows = 4
+        self.seq = 0
         self.shown = False
         self.result = None
 
@@ -137,51 +136,39 @@ class App:
         scored = [(s, i, e) for i, e in enumerate(self.entries) if (s := score(e, q)) is not None]
         return [e for _, _, e in sorted(scored, key=lambda t: (t[0], t[1]))]
 
-
     def render(self):
         found = self.matches()
         self.sel = max(0, min(self.sel, len(found) - 1))
-        start = max(0, self.sel - self.rows + 1)
-        items = [{"id": str(n), "label": e["name"], "detail": e["sub"][:60]}
-                 for n, e in enumerate(found[start:start + self.rows], start)]
-        tree = {"id": "launcher", "k": "picker", "p": {
-            "size": "screen", "title": "Run", "subtitle": f"{len(found)} of {len(self.entries)} apps",
-            "query": self.query, "placeholder": "Type to search", "noun": "apps",
-            "total": len(found), "items": items, "order": [item["id"] for item in items],
-            "selected": str(self.sel) if found else "", "preview": "none", "focus": "list",
-            "empty": "No matches", "actions": [
-                {"id": "open", "label": "Open", "keys": ["enter"], "primary": True, **({"disabled": True} if not found else {})},
-                {"id": "close", "label": "Close", "keys": ["esc"], "end": True}]
-        }}
-        tree = {"id": "main", "k": "col", "c": [tree]}
+        items = [{"id": f"a{n}", "k": "item", "p": {"label": e["name"], "detail": e["sub"][:80]}} for n, e in enumerate(found)]
+        tree = {"id": "main", "k": "col", "c": [
+            {"id": "query", "k": "input", "p": {"text": self.query, "cursor": len(self.query), "placeholder": "Run an application",
+                                                 "icon": "search", "variant": "field"}},
+            {"id": "apps", "k": "list", "p": {"selected": f"a{self.sel}" if found else None, "empty": "No matches", "virtual": True,
+                                              "max": 0.78},
+             "c": items},
+        ]}
         ops = [["del", "main"]] if self.shown else []
         ops.append(["add", "main", SURFACE, None, tree])
         self.shown = True
-        self.seq = getattr(self, "seq", 0) + 1
+        self.seq += 1
         send(frame("f", {"sf": SURFACE, "s": self.seq, "ops": ops}))
-        return found
 
     def event(self, value):
-        if value.get("id") != "launcher":
-            return None
         event = value.get("ev")
-        if event in ("select", "activate"):
-            item = value.get("item", "")
-            if not isinstance(item, str) or not item.isdecimal() or int(item) >= len(self.matches()):
-                return None
-            self.sel = int(item)
-            if event == "activate":
-                return self.key("enter", None)
-        elif event == "action":
-            if value.get("act") == "close":
-                return "quit"
-            if value.get("act") == "open":
-                return self.key("enter", None)
+        if value.get("id") == "query" and event == "change" and isinstance(value.get("value"), str):
+            self.query = value["value"]
+            self.sel = 0
+        elif value.get("id") == "apps" and event in ("select", "activate"):
+            item = value.get("item")
+            if isinstance(item, str) and item[1:].isdecimal():
+                self.sel = int(item[1:])
+                if event == "activate":
+                    return self.key("enter", None)
         return None
 
     def key(self, kind, value):
         found = self.matches()
-        if kind in ("char",):
+        if kind == "char":
             self.query += value
             self.sel = 0
         elif kind == "backspace":
@@ -189,9 +176,10 @@ class App:
             self.sel = 0
         elif kind == "ctrl" and value == "u":
             self.query = ""
-        elif kind in ("down",) or (kind == "ctrl" and value in ("n", "j")):
+            self.sel = 0
+        elif kind == "down" or (kind == "ctrl" and value in ("n", "j")):
             self.sel += 1
-        elif kind in ("up",) or (kind == "ctrl" and value in ("p", "k")):
+        elif kind == "up" or (kind == "ctrl" and value in ("p", "k")):
             self.sel -= 1
         elif kind == "escape" or (kind == "ctrl" and value in ("c", "g")):
             return "quit"
@@ -201,11 +189,8 @@ class App:
         return None
 
 
-def launch(entry, context):
+def launch(entry):
     env = {k: v for k, v in os.environ.items() if not k.startswith("TERN_") and k != "TERM_PROGRAM"}
-    for name, value in (("CONFIG_DIR", context["config"]), ("DAEMON_SOCKET", context["socket"])):
-        if value:
-            env[f"TERN_{name}"] = value
     argv = shlex.split(entry["exec"])
     if entry["terminal"]:
         pane = subprocess.check_output(["tern", "new", "tab", "--", *argv], env=env, text=True, stdin=subprocess.DEVNULL,
@@ -218,9 +203,8 @@ def launch(entry, context):
 
 def main():
     if not sys.stdout.isatty():
-        sys.stderr.write("tern-launcher: needs a terminal\n")
+        sys.stderr.write("launcher: needs a terminal\n")
         return 1
-    context = json.loads(Path(sys.argv[1]).read_text())
     saved = termios.tcgetattr(0)
     raw = list(saved)
     raw[3] &= ~(termios.ECHO | termios.ICANON | termios.ISIG)
@@ -229,7 +213,7 @@ def main():
     app = App(desktop_entries())
     buf = ""
     try:
-        send(frame("q", {"q": "hello", "v": [1], "app": "tern-launcher", "features": [], "ver": "0.1"}))
+        send(frame("q", {"q": "hello", "v": [1], "app": "launcher", "features": [], "ver": "0.1"}))
         hello = None
         deadline = time.time() + 2
         while hello is None and time.time() < deadline:
@@ -237,9 +221,9 @@ def main():
                 events, buf = parse(buf + os.read(0, 65536).decode("utf-8", "replace"))
                 hello = next((v for k, v in events if k == "tsp" and v.get("r") == "hello"), None)
         if hello is None:
-            sys.stderr.write("tern-launcher: no TSP host answered\n")
+            sys.stderr.write("launcher: no TSP host answered\n")
             return 1
-        send(frame("o", {"id": SURFACE, "mode": "screen", "title": "launcher", "role": "tern-run.launcher"}))
+        send(frame("o", {"id": SURFACE, "mode": "screen", "title": "launcher", "role": "tern-script.launcher", "font": "sans", "closable": True}))
         app.render()
         while True:
             ready = select.select([0], [], [], 0.25)[0]
@@ -272,7 +256,7 @@ def main():
         termios.tcsetattr(0, termios.TCSANOW, saved)
     send(frame("x", {"id": SURFACE, "keep": False}))
     if app.result:
-        launch(app.result, context)
+        launch(app.result)
     return 0
 
 

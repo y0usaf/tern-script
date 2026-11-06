@@ -1,5 +1,5 @@
 {
-  description = "A look-aware application launcher in its own Tern window";
+  description = "Tern Surface Protocol programs alone in their own Tern window";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   outputs = {nixpkgs, ...}: let
     systems = ["x86_64-linux" "aarch64-linux"];
@@ -8,18 +8,18 @@
       pkgs = nixpkgs.legacyPackages.${system};
     in {
       default = pkgs.stdenvNoCC.mkDerivation {
-        pname = "tern-run";
-        version = "0.1.0";
+        pname = "tern-script";
+        version = "0.2.0";
         src = ./.;
         nativeBuildInputs = [pkgs.makeWrapper pkgs.python3];
         installPhase = ''
-          install -Dm755 tern-run tern-launcher -t $out/share/tern-run
-          install -Dm644 bare.css -t $out/share/tern-run
-          patchShebangs $out/share/tern-run
-          makeWrapper $out/share/tern-run/tern-run $out/bin/tern-run \
-            --prefix PATH : ${pkgs.lib.makeBinPath [pkgs.python3]}
+          install -Dm755 tern-script launcher -t $out/share/tern-script
+          install -Dm644 bare.css -t $out/share/tern-script
+          patchShebangs $out/share/tern-script
+          makeWrapper $out/share/tern-script/tern-script $out/bin/tern-script
+          makeWrapper $out/share/tern-script/tern-script $out/bin/tern-launcher --add-flags $out/share/tern-script/launcher
         '';
-        meta.mainProgram = "tern-run";
+        meta.mainProgram = "tern-script";
       };
     });
   };

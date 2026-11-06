@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -51,7 +52,7 @@ with tempfile.TemporaryDirectory(prefix="tern-script.", dir=os.environ.get("XDG_
             time.sleep(0.01)
         caller = [f"{k}={v}" for k, v in os.environ.items() if not k.startswith(("TERN_", "TERM")) and k != "COLORTERM"]
         pending = subprocess.Popen(["tern", "new", "session", name, "--", shutil.which("env"), *caller, *program], env=env, text=True, stdout=subprocess.PIPE)
-        window = subprocess.Popen(["tern", "--control", str(run / "control.sock")], env=env, cwd="/")
+        window = subprocess.Popen(["tern", "--control", str(run / "control.sock")], env=env, cwd="/", start_new_session=True)
         try:
             pane, _ = pending.communicate()
             if pending.returncode:
@@ -66,7 +67,8 @@ with tempfile.TemporaryDirectory(prefix="tern-script.", dir=os.environ.get("XDG_
                 waiter.terminate()
                 waiter.wait()
         finally:
-            window.terminate()
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(window.pid, signal.SIGTERM)
             window.wait()
     finally:
         daemon.terminate()

@@ -33,9 +33,9 @@ with tempfile.TemporaryDirectory(prefix="tern-script.", dir=os.environ.get("XDG_
     preference = state / "plugin-data/ui-menu/kv.json"
     active = json.loads(preference.read_text()).get("on", {}) if preference.exists() else {}
     sheets = []
-    for look in ("mini", "ozette", "yorha", "grok"):
+    for look, enabled in active.items():
         sheet = config / "plugins/ui-menu/snippets" / (look + ".css")
-        if active.get(look) and sheet.exists():
+        if enabled and sheet.exists():
             (plugin / sheet.name).symlink_to(sheet)
             sheets.append(sheet.name)
     (plugin / "bare.css").symlink_to(here / "bare.css")

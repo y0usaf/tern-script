@@ -223,7 +223,7 @@ def main():
         if hello is None:
             sys.stderr.write("launcher: no TSP host answered\n")
             return 1
-        send(frame("o", {"id": SURFACE, "mode": "screen", "title": "launcher", "role": "tern-script.launcher", "font": "sans", "closable": True}))
+        send(frame("o", {"id": SURFACE, "mode": "screen", "title": "launcher", "role": "tern-script.launcher", "closable": True}))
         app.render()
         while True:
             ready = select.select([0], [], [], 0.25)[0]

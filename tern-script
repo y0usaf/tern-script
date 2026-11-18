@@ -37,10 +37,10 @@ with tempfile.TemporaryDirectory(prefix="tern-script.", dir=os.environ.get("XDG_
         sheet = config / "plugins/ui-menu/snippets" / (look + ".css")
         if enabled and sheet.exists():
             (plugin / sheet.name).symlink_to(sheet)
-            sheets.append(sheet.name)
+            sheets.append(f"tern.css({json.dumps('tern-script-' + look)}, tern.fs.read(tern.plugin.dir .. {json.dumps('/' + sheet.name)}))")
     (plugin / "bare.css").symlink_to(here / "bare.css")
-    (plugin / "window.luau").touch()
-    (plugin / "plugin.toml").write_text('schema = 1\nid = "tern-script"\nname = "tern-script"\nversion = "0.1.0"\nwindow = "window.luau"\nstyles = ' + json.dumps(sheets + ["bare.css"]) + "\n")
+    (plugin / "window.luau").write_text("\n".join(sheets) + "\n")
+    (plugin / "plugin.toml").write_text('schema = 1\nid = "tern-script"\nname = "tern-script"\nversion = "0.1.0"\nwindow = "window.luau"\nstyles = ["bare.css"]\n')
     (cfg / "welcomed").touch()
     env = dict(os.environ, TERN_CONFIG_DIR=str(cfg), TERN_DAEMON_SOCKET=str(run / "daemon.sock"))
     daemon = subprocess.Popen(["tern", "daemon", "--socket", env["TERN_DAEMON_SOCKET"]], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
